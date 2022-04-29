@@ -1,0 +1,118 @@
+---
+title: "Collaboratory_EJ"
+author: "Eli Gullett"
+date: '2022-04-21'
+output: html_document
+---
+Setting up the RMD:
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Instaling and loading packages:
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(janitor)
+library(skimr)
+```
+
+Loading in the data
+
+```{r, echo=FALSE}
+ej <- read.csv("C:/Users/gulle/OneDrive/Documents/GitHub/gillings/ej.csv")
+
+criteria <- read.csv("C:/Users/gulle/Downloads/ej_criteria.csv")
+```
+
+Data cleaning + wrangling
+```{r}
+#First we need to join the datasets
+ej_joined <- criteria %>% 
+ left_join(ej, by = "fips")
+ej_joined
+
+#Clean column names
+library(janitor)
+ej_joined <- ej_joined %>%
+  clean_names()
+ej_joined
+
+ej_joined <- ej_joined %>%
+  rename(county = i_county)
+ej_joined
+
+names(ej_joined)
+
+library(stringr)
+ej_joined$per_child_bll = as.numeric(gsub("[\\%,]", "", ej_joined$per_child_bll))
+ej_joined
+
+ej_joined$population <- as.numeric(gsub(",","",ej_joined$population))
+ej_joined
+
+ej_joined$yr_update <- as.numeric(gsub("--","",ej_joined$yr_update))
+ej_joined
+
+ej_joined$annex_cost <- as.numeric(gsub("--","",ej_joined$annex_cost))
+ej_joined
+
+ej_joined[is.na(ej_joined)] = 0
+ej_joined
+
+ej_joined$fte_2017 = as.numeric(gsub("[\\/,]", "", ej_joined$fte_2017))
+ej_joined
+
+names(ej_joined)
+
+#Removing those index variables to recreate them later
+ej_joined <- ej_joined %>%
+  dplyr::select(-lead_risk, -fecal_risk, -chem_risk, -pol_barrier, -health_infrastructure)
+ej_joined
+
+ej_joined <- ej_joined %>%
+  as.numeric(health_b_rank)%>%
+  as.numeric(clinical_care_rank)%>%
+  as.numeric(socioecon_risk)%>%
+  as.numeric(phys_env_rank)%>%
+  as.numeric(dev_tier)
+ej_joined
+
+str(ej_joined)
+```
+
+Creating Index Variables
+```{r}
+ej_joined <- ej_joined %>% rowwise() %>% mutate(health_infrastructure = mean(c(health_b_rank, fte_2017)))
+ej_joined
+
+ej_joined <- ej_joined %>% rowwise() %>%
+  mutate(rank_score = mean(c(socioecon_risk, health_b_rank, clinical_care_rank, phys_env_rank, dev_tier, health_infrastructure)))
+ej_joined
+
+ej_joined$rank_score %>% summary()
+
+ej_joined$rank <-  rank(ej_joined$rank_score)
+ej_joined$rank
+
+ej_joined
+
+```
+
+EDA & Summary Stats
+```{r}
+ej_joined %>% summary()
+
+#Visualize Missingness
+library(naniar)
+vis_miss(ej_joined)
+
+#Shape of data
+hist(pull(ej_joined$socioecon_risk))
+hist(pull(ej_joined$health_b_rank))
+hist(pull(ej_joined$clinical_care_rank))
+hist(pull(ej_joined$phys_env_rank))
+hist(pull(ej_joined$dev_tier))
+hist(pull(ej_joined$health_infrastructure))
+```
